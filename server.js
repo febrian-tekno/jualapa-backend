@@ -10,19 +10,15 @@ const { errorHandler, notFoundPath } = require('./middleware/errorHandler');
 const rateLimiter = require('./middleware/rateLimiter');
 require('dotenv').config();
 
-// port
-const port = process.env.PORT || 3000;
+// host dan  port
+const host = process.env.NODE_ENV === 'production' ? process.env.HOST : '0.0.0.0';
+const port = process.env.NODE_ENV === 'production' ? process.env.PORT : 3000;
 const baseUrlFE = process.env.FRONT_END_URL;
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://api.localhost:3000',
-  'http://localhost:5173',
-  baseUrlFE
-];
+const allowedOrigins = ['http://localhost:3000', 'http://api.localhost:3000', 'http://localhost:5173',baseUrlFE];
 
 app.use(
   cors({
-    origin: (origin, callback) => {
+    origin: function (origin, callback) {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
@@ -33,12 +29,19 @@ app.use(
   })
 );
 
+// middleware parsing body request
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
-app.use(rateLimiter);
 
-app.get('/', (req, res) => res.redirect('/api-docs'));
+// cookies
+app.use(cookieParser());
+
+// api limitter (redis cloud by ip)
+app.use(rateLimiter)
+
+app.get('/', (req, res) => {
+  res.redirect('/api-docs');
+});
 
 app.use(
   '/api-docs',
@@ -53,35 +56,45 @@ app.use(
   })
 );
 
+// endpoint api
 app.use('/api/v1', endpointApi);
+// endpoint image mutler
 app.use('/uploads', express.static('uploads'));
 
+// error path Not found
 app.use(notFoundPath);
+// error Handler
 app.use(errorHandler);
 
-setInterval(() => {
-  const usage = process.memoryUsage();
-  const now = new Date().toISOString();
-  console.log(`\n[MEMORY CHECK - ${now}]`);
-  console.log(`- RSS        : ${(usage.rss / 1024 / 1024).toFixed(2)} MB`);
-  console.log(`- Heap Total : ${(usage.heapTotal / 1024 / 1024).toFixed(2)} MB`);
-  console.log(`- Heap Used  : ${(usage.heapUsed / 1024 / 1024).toFixed(2)} MB`);
-  console.log(`- External   : ${(usage.external / 1024 / 1024).toFixed(2)} MB`);
-  console.log('-------------------------------------------');
-}, 15 * 60 * 1000);
+// check memory usage every 5 minutes
+setInterval(
+  () => {
+    const usage = process.memoryUsage();
+    const now = new Date();
+    const timestamp = now.toISOString();
 
-// connect to MongoDB then start server
+    console.log(`\n[MEMORY CHECK - ${timestamp}]`);
+    console.log(`- RSS         : ${(usage.rss / 1024 / 1024).toFixed(2)} MB`);
+    console.log(`- Heap Total  : ${(usage.heapTotal / 1024 / 1024).toFixed(2)} MB`);
+    console.log(`- Heap Used   : ${(usage.heapUsed / 1024 / 1024).toFixed(2)} MB`);
+    console.log(`- External    : ${(usage.external / 1024 / 1024).toFixed(2)} MB`);
+    console.log('-------------------------------------------');
+  },
+  15 * 60 * 1000
+);
+
+// connect mongodb
 async function start() {
   try {
     await mongoose.connect(process.env.DATABASE);
     console.log('berhasil terhubung ke database..');
-    app.listen(port, () => {
-      console.log(`server running in ${process.env.NODE_ENV || 'development'} mode on port ${port}`);
-    });
   } catch (error) {
-    console.error(`gagal terhubung ke database: ${error.message}`);
-    process.exit(1);
+    console.log(`gagal terhubung ke databse : ${error.message}`);
   }
 }
 
-start();
+app.listen(port, host, () => {
+  console.log(`server running on http://${host}:${port}`);
+});
+
+module.exports = start;
