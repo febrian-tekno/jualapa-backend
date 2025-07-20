@@ -19,8 +19,8 @@ const createResToken = (user) => {
     const cookieOption = {
       expires: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 hari
       httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
+      secure: true,
+      sameSite: 'none',
       path: '/',
     };
     const cookie = { name: 'session', token, cookieOption };
